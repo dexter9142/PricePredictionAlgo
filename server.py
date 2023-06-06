@@ -92,38 +92,43 @@ def get_data():
 def process_prices():
     # Get the JSON data from the request
     payload = request.get_json()
+    global dates, prices
 
     # Extract the dates and prices from the payload
-    global dates, prices
     dates = [item['date'] for item in payload]
     prices = [item['price'] for item in payload]
 
     # Convert dates to datetime objects
     dates = [datetime.strptime(date, "%Y-%m-%d") for date in dates]
 
-    # Convert prices to a regular Python list
-    prices = list(prices)
-
     # Perform any necessary data preprocessing or modeling steps here
     # ...
 
-    # Clear the price_responses array
-    price_responses.clear()
+    # Create SARIMA model
+    y = np.array(prices).reshape(-1, 1)
+    sarima_model = SARIMAX(y.flatten(), order=(1, 1, 1), seasonal_order=(1, 1, 1, 7))
+    sarima_model_fit = sarima_model.fit()
 
-    # Create PriceResponse objects and append them to the price_responses array
-    for date, price in zip(dates, prices):
-        price_responses.append(PriceResponse(date.strftime("%Y-%m-%d"), price))
+    # Forecast prices for the provided dates using SARIMA
+    forecasted_prices = sarima_model_fit.forecast(steps=len(dates)).tolist()
 
-    # Generate the response in the desired format
+    # Format the forecasted prices to have one digit after the decimal point
+    forecasted_prices = [round(price, 1) for price in forecasted_prices]
+
+    # Create a list of dictionaries containing the dates and formatted forecasted prices
     response = []
-    for price_response in price_responses:
+    for date, price in zip(dates, forecasted_prices):
+        formatted_date = date.strftime("%Y-%m-%d")
         response.append({
-            "date": price_response.date,
-            "price": price_response.price
+            "date": formatted_date,
+            "price": price
         })
 
-    # Convert the response to JSON and return it
-    return jsonify(response)
+    # Convert the response to JSON
+    json_data = json.dumps(response)
+
+    # Return the JSON data
+    return json_data
 
 if __name__ == '__main__':
     app.run(debug=True)
