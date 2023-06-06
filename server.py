@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sb
 import json
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request
@@ -19,26 +18,28 @@ class PriceResponse:
 price_responses = []  # Array to store PriceResponse objects
 dates = []  # Array to store dates
 prices = []
+future_dates = []
 
-@app.route('/data')
-def get_data():
-    global dates, prices  # Declare as global variables
+def fetch_data():
+    # Retrieve data from source and return the dates and prices
+    date_strings = [
+        '16-04-23', '17-04-23', '18-04-23', '19-04-23', '20-04-23', '21-04-23', '22-04-23', '23-04-23', '24-04-23',
+        '25-04-23'
+    ]
+    dates = [datetime.strptime(date, "%d-%m-%y") for date in date_strings]
+    prices = np.array([200, 280, 210, 350, 440, 400, 390, 450, 450, 475])
+    return dates, prices
+
+def forecast_prices():
+    global dates, prices, future_dates
 
     today = datetime.now()
     future_dates = [(today + timedelta(days=i)).strftime("%d-%m-%y") for i in range(1, 14)]
 
     if not dates or not prices:
-        # Activate once data is retrieved
-        # dates, prices = fetch_data()
-        date_strings = [
-            '16-04-23', '17-04-23', '18-04-23', '19-04-23', '20-04-23', '21-04-23', '22-04-23', '23-04-23', '24-04-23',
-            '25-04-23'
-        ]
-        dates = [datetime.strptime(date, "%d-%m-%y") for date in date_strings]
-        prices = np.array([200, 280, 210, 350, 440, 400, 390, 450, 450, 475])
+        dates, prices = fetch_data()
 
     y = np.array(prices).reshape(-1, 1)
-
 
     # Create SARIMA model
     sarima_model = SARIMAX(y.flatten(), order=(1, 1, 1), seasonal_order=(1, 1, 1, 7))
@@ -80,10 +81,11 @@ def get_data():
             "price": price
         })
 
-    # Convert the list of dictionaries to JSON
-    json_data = json.dumps(data_list)
+    return data_list
 
-    # Return the JSON response
+@app.route('/data')
+def get_data():
+    json_data = json.dumps(forecast_prices())
     return json_data
 
 @app.route('/prices', methods=['POST'])
